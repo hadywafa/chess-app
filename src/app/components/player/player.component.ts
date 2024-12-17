@@ -1,8 +1,11 @@
-import { Component, Input, ViewChild } from "@angular/core";
-import { NgxChessBoardModule, NgxChessBoardView } from "ngx-chess-board";
+import { Component, Input, ViewChild, OnInit, AfterViewInit, OnDestroy } from "@angular/core";
+import { NgxChessBoardView, NgxChessBoardModule } from "ngx-chess-board";
 import { ActivatedRoute } from "@angular/router";
 import { HistoryMove } from "ngx-chess-board/lib/history-move-provider/history-move";
-import { SafeResourceUrl } from "@angular/platform-browser";
+import { Subscription } from "rxjs";
+import { GameMessage } from "src/app/models/game-message.model";
+import { CommunicationService } from "src/app/services/communication.service";
+import { StorageService } from "src/app/services/storage.service";
 
 @Component({
   selector: "app-player",
@@ -11,33 +14,44 @@ import { SafeResourceUrl } from "@angular/platform-browser";
   standalone: true,
   imports: [NgxChessBoardModule],
 })
-export class PlayerComponent {
-  isWhiteBoard: boolean = false;
-  lightTileColor: string = "#EEEED2";
-  darkTileColor: string = "#769656";
+export class PlayerComponent implements OnInit, AfterViewInit, OnDestroy {
+  isWhiteBoard = false;
+  playerColor: "white" | "black" = "white";
+  lightTileColor = "#EEEED2";
+  darkTileColor = "#769656";
 
   @Input() onGameEnd!: () => void;
-
   @ViewChild("board", { static: false }) board!: NgxChessBoardView;
 
-  constructor(private route: ActivatedRoute) {}
+  private messageSubscription!: Subscription;
 
-  ngOnInit() {
+  constructor(
+    private route: ActivatedRoute,
+    private communicationService: CommunicationService,
+    private storageService: StorageService
+  ) {}
+
+  ngOnInit(): void {
     this.route.queryParams.subscribe((params) => {
-      this.isWhiteBoard = params["isWhite"] ?? false;
+      this.isWhiteBoard = params["isWhite"] === "true";
+      this.playerColor = this.isWhiteBoard ? "white" : "black";
     });
 
-    window.addEventListener("message", (event) => {
-      if (event.data.reset) {
+    this.messageSubscription = this.communicationService.messages$.subscribe((message: GameMessage) => {
+      if (message.reset) {
         this.handleResetEvent();
-      } else {
-        this.handleMoveEvent(event.data);
+      } else if (message.move) {
+        this.handleMoveEvent(message);
+      }
+
+      if (message.mate) {
+        this.onGameEnd();
       }
     });
   }
 
-  ngAfterViewInit() {
-    const currBoardState = localStorage.getItem("board");
+  ngAfterViewInit(): void {
+    const currBoardState = this.storageService.getItem("board");
     if (currBoardState) {
       this.board.setFEN(currBoardState);
     }
@@ -45,35 +59,42 @@ export class PlayerComponent {
     if (!this.isWhiteBoard) {
       setTimeout(() => {
         this.board.reverse();
-      });
+      }, 0);
     }
   }
 
-  onMove() {
-    const lastMove = this.board.getMoveHistory().slice(-1)[0];
-    window.parent.postMessage(lastMove, this.getMainPageUrl());
+  onMove(): void {
+    const lastMove: HistoryMove | undefined = this.board.getMoveHistory().slice(-1)[0];
+    if (lastMove) {
+      const moveData: GameMessage = { move: lastMove.move, color: this.playerColor };
+      this.communicationService.sendMessage(window.parent, moveData, this.getMainPageOrigin());
+    }
   }
 
-  private handleResetEvent() {
+  private handleResetEvent(): void {
     this.board.reset();
 
     if (!this.isWhiteBoard) {
       this.board.reverse();
     }
 
-    localStorage.clear();
+    this.storageService.clear();
   }
 
-  private handleMoveEvent(moveData: HistoryMove) {
-    this.board.move(moveData.move);
-    localStorage.setItem("board", this.board.getFEN());
-
-    if (moveData.mate) {
-      this.onGameEnd();
+  private handleMoveEvent(message: GameMessage): void {
+    if (message.move) {
+      this.board.move(message.move);
+      this.storageService.setItem("board", this.board.getFEN());
     }
   }
 
-  private getMainPageUrl(): SafeResourceUrl {
-    return `${window.location.origin}/mainpage`;
+  private getMainPageOrigin(): string {
+    return window.location.origin;
+  }
+
+  ngOnDestroy(): void {
+    if (this.messageSubscription) {
+      this.messageSubscription.unsubscribe();
+    }
   }
 }

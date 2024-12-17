@@ -1,7 +1,12 @@
-import { Component, ElementRef, ViewChild } from "@angular/core";
+import { Component, ElementRef, ViewChild, OnInit, AfterViewInit, OnDestroy } from "@angular/core";
 import { Router } from "@angular/router";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { NgIf } from "@angular/common";
+import { Subscription } from "rxjs";
+import { GameMessage } from "src/app/models/game-message.model";
+import { CommunicationService } from "src/app/services/communication.service";
+import { StorageService } from "src/app/services/storage.service";
+import { IFRAME_PATH } from "src/app/utils/constants";
 
 @Component({
   selector: "app-main-page",
@@ -10,64 +15,83 @@ import { NgIf } from "@angular/common";
   standalone: true,
   imports: [NgIf],
 })
-export class MainPageComponent {
-  @ViewChild("white_board_iframe")
-  whiteBoardIframe!: ElementRef<HTMLIFrameElement>;
-  @ViewChild("black_board_iframe")
-  blackBoardIframe!: ElementRef<HTMLIFrameElement>;
+export class MainPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  @ViewChild("white_board_iframe") whiteBoardIframe!: ElementRef<HTMLIFrameElement>;
+  @ViewChild("black_board_iframe") blackBoardIframe!: ElementRef<HTMLIFrameElement>;
 
   gameFinished = false;
-  iFrameWhiteBoardUrl: SafeResourceUrl = "";
-  iFrameBlackBoardUrl: SafeResourceUrl = "";
+  iFrameWhiteBoardUrl: SafeResourceUrl;
+  iFrameBlackBoardUrl: SafeResourceUrl;
+  private messageSubscription!: Subscription;
 
-  constructor(private router: Router, private sanitizer: DomSanitizer) {}
-
-  ngOnInit() {
+  constructor(
+    private router: Router,
+    private sanitizer: DomSanitizer,
+    private communicationService: CommunicationService,
+    private storageService: StorageService
+  ) {
     this.iFrameWhiteBoardUrl = this.getIframePageUrl(true);
     this.iFrameBlackBoardUrl = this.getIframePageUrl();
   }
 
-  ngAfterViewInit() {
-    window.addEventListener("message", (event) => {
-      if (event.data.mate) {
+  ngOnInit(): void {
+    this.messageSubscription = this.communicationService.messages$.subscribe((message: GameMessage) => {
+      if (message.mate) {
         this.gameFinished = true;
       }
 
-      const lastTurnColor = event.data.color;
+      const lastTurnColor = message.color;
 
-      const targetIframe = lastTurnColor === "white" ? this.blackBoardIframe : this.whiteBoardIframe;
+      if (lastTurnColor) {
+        const targetIframe = lastTurnColor === "white" ? this.blackBoardIframe : this.whiteBoardIframe;
+        const targetWindow = targetIframe.nativeElement.contentWindow;
 
-      const targetWindow = targetIframe.nativeElement.contentWindow;
-      if (targetWindow) {
-        targetWindow.postMessage(event.data, this.getIframePageUrl());
+        this.communicationService.sendMessage(targetWindow, message, this.getIframeOrigin());
       }
     });
   }
 
-  onGameEnd() {
+  ngAfterViewInit(): void {
+    // Additional initialization if needed after view is loaded
+  }
+
+  onGameEnd(): void {
     this.gameFinished = true;
   }
 
-  reset() {
+  reset(): void {
     this.gameFinished = false;
 
-    const resetData = { reset: true };
+    const resetData: GameMessage = { reset: true };
 
-    this.whiteBoardIframe.nativeElement.contentWindow?.postMessage(resetData, this.iFrameWhiteBoardUrl);
+    this.communicationService.sendMessage(
+      this.whiteBoardIframe.nativeElement.contentWindow,
+      resetData,
+      this.getIframeOrigin()
+    );
 
-    this.blackBoardIframe.nativeElement.contentWindow?.postMessage(resetData, this.iFrameBlackBoardUrl);
+    this.communicationService.sendMessage(
+      this.blackBoardIframe.nativeElement.contentWindow,
+      resetData,
+      this.getIframeOrigin()
+    );
 
-    localStorage.clear();
+    this.storageService.clear();
   }
 
-  getIframePageUrl(isWhite: boolean = false): SafeResourceUrl {
-    const blackBoardUrl = `${window.location.origin}/iframepage`;
+  private getIframePageUrl(isWhite: boolean = false): SafeResourceUrl {
+    const baseUrl = `${window.location.origin}${IFRAME_PATH}`;
+    const url = isWhite ? `${baseUrl}/?isWhite=true` : baseUrl;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
+  }
 
-    if (isWhite) {
-      const whiteBoardUrl = `${blackBoardUrl}/?isWhite=true`;
-      return this.sanitizer.bypassSecurityTrustResourceUrl(whiteBoardUrl);
-    } else {
-      return this.sanitizer.bypassSecurityTrustResourceUrl(blackBoardUrl);
+  private getIframeOrigin(): string {
+    return window.location.origin;
+  }
+
+  ngOnDestroy(): void {
+    if (this.messageSubscription) {
+      this.messageSubscription.unsubscribe();
     }
   }
 }
