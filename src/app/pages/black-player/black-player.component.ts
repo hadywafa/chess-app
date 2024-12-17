@@ -7,7 +7,6 @@ interface ParentToIframeMessage {
   data?: {
     fen?: string;
     turn?: "white" | "black";
-    disabled?: boolean;
   };
 }
 
@@ -20,9 +19,9 @@ interface ParentToIframeMessage {
       #board
       [size]="400"
       [showCoords]="true"
-      [dragDisabled]="isDisabled"
       [darkTileColor]="'#d18b47'"
       [lightTileColor]="'#ffce9e'"
+      [lightDisabled]="true"
       (moveChange)="onMoveChange()"
       (checkmate)="onCheckmate()"
     ></ngx-chess-board>
@@ -30,7 +29,8 @@ interface ParentToIframeMessage {
 })
 export class BlackPlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild("board", { static: true }) board!: NgxChessBoardView;
-  isDisabled = false;
+  lightDisabled = true; // Initially disable white since black is reversed side
+  darkDisabled = false; // If you start as white's turn, you can adjust these defaults as needed
   private messageListener!: (event: MessageEvent) => void;
 
   ngOnInit() {
@@ -46,11 +46,9 @@ export class BlackPlayerComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Delay the reverse call to ensure the board is rendered
+    // Reverse once for black perspective
     setTimeout(() => {
-      console.log('Attempting to reverse board');
       this.board.reverse();
-      console.log('Reverse called');
     }, 100);
   }
 
@@ -63,12 +61,20 @@ export class BlackPlayerComponent implements OnInit, OnDestroy, AfterViewInit {
       if (msg.data.fen && msg.data.fen !== this.board.getFEN()) {
         this.board.setFEN(msg.data.fen);
       }
-      if (typeof msg.data.disabled === "boolean") {
-        this.isDisabled = msg.data.disabled;
+
+      if (msg.data.turn) {
+        // On white turn: whiteEnabled = true (lightDisabled=false), blackEnabled = false (darkDisabled=true)
+        // On black turn: blackEnabled = true (darkDisabled=false), whiteDisabled=true (lightDisabled=true)
+        if (msg.data.turn === "white") {
+          this.lightDisabled = false;
+          this.darkDisabled = true;
+        } else {
+          this.lightDisabled = true;
+          this.darkDisabled = false;
+        }
       }
     } else if (msg.type === "reset") {
       this.board.reset();
-      // After a reset, reverse again to maintain black orientation
       setTimeout(() => {
         this.board.reverse();
       }, 50);

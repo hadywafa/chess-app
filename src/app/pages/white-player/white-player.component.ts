@@ -7,7 +7,6 @@ interface ParentToIframeMessage {
   data?: {
     fen?: string;
     turn?: "white" | "black";
-    disabled?: boolean;
   };
 }
 
@@ -20,18 +19,19 @@ interface ParentToIframeMessage {
       #board
       [size]="400"
       [showCoords]="true"
-      [dragDisabled]="isDisabled"
       [darkTileColor]="'#d18b47'"
       [lightTileColor]="'#ffce9e'"
+      [darkDisabled]="true"
       (moveChange)="onMoveChange()"
       (checkmate)="onCheckmate()"
     >
     </ngx-chess-board>
-  `,
+  `
 })
 export class WhitePlayerComponent implements OnInit, OnDestroy {
   @ViewChild("board", { static: true }) board!: NgxChessBoardView;
-  isDisabled = false;
+  lightDisabled = false;
+  darkDisabled = true; // Initially, if white moves first, black should be disabled
   private messageListener!: (event: MessageEvent) => void;
 
   ngOnInit() {
@@ -55,8 +55,16 @@ export class WhitePlayerComponent implements OnInit, OnDestroy {
       if (msg.data.fen && msg.data.fen !== this.board.getFEN()) {
         this.board.setFEN(msg.data.fen);
       }
-      if (typeof msg.data.disabled === "boolean") {
-        this.isDisabled = msg.data.disabled;
+      if (msg.data.turn) {
+        // If turn is white, white can move (lightDisabled=false), black cannot (darkDisabled=true)
+        // If turn is black, black can move (darkDisabled=false), white cannot (lightDisabled=true)
+        if (msg.data.turn === 'white') {
+          this.lightDisabled = false;
+          this.darkDisabled = true;
+        } else {
+          this.lightDisabled = true;
+          this.darkDisabled = false;
+        }
       }
     } else if (msg.type === "reset") {
       this.board.reset();

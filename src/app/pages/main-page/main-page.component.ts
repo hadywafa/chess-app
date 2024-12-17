@@ -13,7 +13,6 @@ interface ParentToIframeMessage {
   data?: {
     fen?: string;
     turn?: "white" | "black";
-    disabled?: boolean;
   };
 }
 
@@ -38,7 +37,6 @@ export class MainPageComponent implements OnInit, OnDestroy {
   @ViewChild("iframeWhite", { static: true }) iframeWhite!: ElementRef<HTMLIFrameElement>;
   @ViewChild("iframeBlack", { static: true }) iframeBlack!: ElementRef<HTMLIFrameElement>;
 
-  // Use the DomSanitizer if needed for safe resource URLs
   iframeWhiteSrc: SafeResourceUrl;
   iframeBlackSrc: SafeResourceUrl;
 
@@ -47,7 +45,7 @@ export class MainPageComponent implements OnInit, OnDestroy {
   private messageListener!: (event: MessageEvent) => void;
 
   constructor(private sanitizer: DomSanitizer) {
-    // Set iframe src to the respective routes for white and black
+    // Assign iframe paths; adjust as needed based on your routing
     this.iframeWhiteSrc = this.sanitizer.bypassSecurityTrustResourceUrl("/iframepagewhite");
     this.iframeBlackSrc = this.sanitizer.bypassSecurityTrustResourceUrl("/iframepageblack");
   }
@@ -99,7 +97,6 @@ export class MainPageComponent implements OnInit, OnDestroy {
       data: {
         fen: this.currentFen,
         turn: this.currentTurn,
-        disabled: this.currentTurn !== "white",
       },
     };
     iframeWhiteWin.postMessage(msgWhite, window.location.origin);
@@ -109,7 +106,6 @@ export class MainPageComponent implements OnInit, OnDestroy {
       data: {
         fen: this.currentFen,
         turn: this.currentTurn,
-        disabled: this.currentTurn !== "black",
       },
     };
     iframeBlackWin.postMessage(msgBlack, window.location.origin);
