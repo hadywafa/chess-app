@@ -1,4 +1,3 @@
-// communication.service.ts
 import { Injectable, OnDestroy } from "@angular/core";
 import { Subject, fromEvent, Subscription } from "rxjs";
 import { GameMessage } from "../models/game-message.model";

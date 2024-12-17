@@ -10,6 +10,6 @@
   left: 0;
   width: 400px;
   height: 400px;
-  background: rgba(255, 255, 255, 0); /* Transparent overlay to block interactions */
+  background: rgba(255, 255, 255, 0);
   cursor: not-allowed;
 }
