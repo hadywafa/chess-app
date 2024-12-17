@@ -1,10 +1,11 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from "@angular/core";
-import { CommonModule } from "@angular/common";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 
 interface IframeToParentMessage {
   type: "move" | "checkmate" | "requestState";
-  data?: { fen?: string };
+  data?: {
+    fen?: string;
+  };
 }
 
 interface ParentToIframeMessage {
@@ -18,36 +19,39 @@ interface ParentToIframeMessage {
 
 @Component({
   selector: "app-main-page",
-  standalone: true,
-  imports: [CommonModule],
   template: `
     <h1>Main page</h1>
     <button (click)="createNewGame()">Create New Game</button>
     <div style="display:flex; gap:20px;">
       <div style="border:1px solid #000; background: #ffe0b2;">
         <h3>Iframe 1 (White)</h3>
-        <iframe #iframe1 [src]="iframeSrc" width="400" height="400"></iframe>
+        <iframe #iframeWhite [src]="iframeWhiteSrc" width="400" height="400"></iframe>
       </div>
       <div style="border:1px solid #000; background: #e0d4f3;">
         <h3>Iframe 2 (Black)</h3>
-        <iframe #iframe2 [src]="iframeSrc" width="400" height="400"></iframe>
+        <iframe #iframeBlack [src]="iframeBlackSrc" width="400" height="400"></iframe>
       </div>
     </div>
   `,
 })
 export class MainPageComponent implements OnInit, OnDestroy {
-  @ViewChild("iframe1", { static: true }) iframe1!: ElementRef<HTMLIFrameElement>;
-  @ViewChild("iframe2", { static: true }) iframe2!: ElementRef<HTMLIFrameElement>;
+  @ViewChild("iframeWhite", { static: true }) iframeWhite!: ElementRef<HTMLIFrameElement>;
+  @ViewChild("iframeBlack", { static: true }) iframeBlack!: ElementRef<HTMLIFrameElement>;
 
-  iframeSrc: SafeResourceUrl;
+  // Use the DomSanitizer if needed for safe resource URLs
+  iframeWhiteSrc: SafeResourceUrl;
+  iframeBlackSrc: SafeResourceUrl;
+
   currentFen: string = "start";
   currentTurn: "white" | "black" = "white";
   private messageListener!: (event: MessageEvent) => void;
 
   constructor(private sanitizer: DomSanitizer) {
-    // Use the sanitizer to mark the URL as safe
-    this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl("/iframepage");
+    // Set iframe src to the respective routes for white and black
+    this.iframeWhiteSrc = this.sanitizer.bypassSecurityTrustResourceUrl("/iframepagewhite");
+    this.iframeBlackSrc = this.sanitizer.bypassSecurityTrustResourceUrl("/iframepageblack");
   }
+
   ngOnInit() {
     const savedState = localStorage.getItem("chessGameState");
     if (savedState) {
@@ -87,10 +91,10 @@ export class MainPageComponent implements OnInit, OnDestroy {
   }
 
   syncStateToIframes() {
-    const iframe1Win = this.iframe1.nativeElement.contentWindow!;
-    const iframe2Win = this.iframe2.nativeElement.contentWindow!;
+    const iframeWhiteWin = this.iframeWhite.nativeElement.contentWindow!;
+    const iframeBlackWin = this.iframeBlack.nativeElement.contentWindow!;
 
-    const msg1: ParentToIframeMessage = {
+    const msgWhite: ParentToIframeMessage = {
       type: "updateState",
       data: {
         fen: this.currentFen,
@@ -98,9 +102,9 @@ export class MainPageComponent implements OnInit, OnDestroy {
         disabled: this.currentTurn !== "white",
       },
     };
-    iframe1Win.postMessage(msg1, window.location.origin);
+    iframeWhiteWin.postMessage(msgWhite, window.location.origin);
 
-    const msg2: ParentToIframeMessage = {
+    const msgBlack: ParentToIframeMessage = {
       type: "updateState",
       data: {
         fen: this.currentFen,
@@ -108,7 +112,7 @@ export class MainPageComponent implements OnInit, OnDestroy {
         disabled: this.currentTurn !== "black",
       },
     };
-    iframe2Win.postMessage(msg2, window.location.origin);
+    iframeBlackWin.postMessage(msgBlack, window.location.origin);
   }
 
   saveState() {

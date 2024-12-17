@@ -12,13 +12,14 @@ interface ParentToIframeMessage {
 }
 
 @Component({
-  selector: "app-iframe-page",
+  selector: "app-white-player",
   standalone: true,
   imports: [CommonModule, NgxChessBoardModule],
   template: `
     <ngx-chess-board
       #board
       [size]="400"
+      [showCoords]="true"
       [dragDisabled]="isDisabled"
       [darkTileColor]="'#d18b47'"
       [lightTileColor]="'#ffce9e'"
@@ -28,9 +29,8 @@ interface ParentToIframeMessage {
     </ngx-chess-board>
   `,
 })
-export class IframePageComponent implements OnInit, OnDestroy {
+export class WhitePlayerComponent implements OnInit, OnDestroy {
   @ViewChild("board", { static: true }) board!: NgxChessBoardView;
-  orientation: "white" | "black" = "white";
   isDisabled = false;
   private messageListener!: (event: MessageEvent) => void;
 
@@ -54,9 +54,6 @@ export class IframePageComponent implements OnInit, OnDestroy {
     if (msg.type === "updateState" && msg.data) {
       if (msg.data.fen && msg.data.fen !== this.board.getFEN()) {
         this.board.setFEN(msg.data.fen);
-      }
-      if (msg.data.turn) {
-        this.orientation = msg.data.turn === "black" ? "black" : "white";
       }
       if (typeof msg.data.disabled === "boolean") {
         this.isDisabled = msg.data.disabled;
